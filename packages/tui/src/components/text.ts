@@ -1,5 +1,5 @@
 import type { Component } from "../tui.ts";
-import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
+import { applyBackgroundToLine, sliceByColumn, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
 
 /**
  * Text component - displays multi-line text with word wrapping
@@ -60,29 +60,34 @@ export class Text implements Component {
 		// Replace tabs with 3 spaces
 		const normalizedText = this.text.replace(/\t/g, "   ");
 
-		// Calculate content width (subtract left/right margins)
-		const contentWidth = Math.max(1, width - this.paddingX * 2);
+		// Calculate effective padding. Very narrow terminals may not have enough
+		// room for both horizontal padding and content, so clamp padding to width.
+		const leftPadding = Math.min(this.paddingX, Math.max(0, width - 1));
+		const rightPadding = Math.min(this.paddingX, Math.max(0, width - leftPadding - 1));
+		const contentWidth = Math.max(1, width - leftPadding - rightPadding);
 
 		// Wrap text (this preserves ANSI codes but does NOT pad)
 		const wrappedLines = wrapTextWithAnsi(normalizedText, contentWidth);
 
 		// Add margins and background to each line
-		const leftMargin = " ".repeat(this.paddingX);
-		const rightMargin = " ".repeat(this.paddingX);
+		const leftMargin = " ".repeat(leftPadding);
+		const rightMargin = " ".repeat(rightPadding);
 		const contentLines: string[] = [];
 
 		for (const line of wrappedLines) {
 			// Add margins
 			const lineWithMargins = leftMargin + line + rightMargin;
+			const lineForWidth =
+				visibleWidth(lineWithMargins) > width ? sliceByColumn(lineWithMargins, 0, width, true) : lineWithMargins;
 
 			// Apply background if specified (this also pads to full width)
 			if (this.customBgFn) {
-				contentLines.push(applyBackgroundToLine(lineWithMargins, width, this.customBgFn));
+				contentLines.push(applyBackgroundToLine(lineForWidth, width, this.customBgFn));
 			} else {
 				// No background - just pad to width with spaces
-				const visibleLen = visibleWidth(lineWithMargins);
+				const visibleLen = visibleWidth(lineForWidth);
 				const paddingNeeded = Math.max(0, width - visibleLen);
-				contentLines.push(lineWithMargins + " ".repeat(paddingNeeded));
+				contentLines.push(lineForWidth + " ".repeat(paddingNeeded));
 			}
 		}
 
