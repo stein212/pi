@@ -1029,13 +1029,17 @@ function breakLongWord(word: string, width: number, tracker: AnsiCodeTracker): s
  * @returns Line with background applied and padded to width
  */
 export function applyBackgroundToLine(line: string, width: number, bgFn: (text: string) => string): string {
+	// Ensure the line fits before padding. Callers should already respect width,
+	// but this keeps background rendering safe for very narrow terminals.
+	const lineForWidth = visibleWidth(line) > width ? sliceByColumn(line, 0, width, true) : line;
+
 	// Calculate padding needed
-	const visibleLen = visibleWidth(line);
+	const visibleLen = visibleWidth(lineForWidth);
 	const paddingNeeded = Math.max(0, width - visibleLen);
 	const padding = " ".repeat(paddingNeeded);
 
 	// Apply background to content + padding
-	const withPadding = line + padding;
+	const withPadding = lineForWidth + padding;
 	return bgFn(withPadding);
 }
 
