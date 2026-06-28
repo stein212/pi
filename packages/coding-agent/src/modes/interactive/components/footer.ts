@@ -29,6 +29,18 @@ export function formatTokens(count: number): string {
 	return `${Math.round(count / 1000000)}M`;
 }
 
+function formatElapsed(ms: number): string {
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+	const seconds = totalSeconds % 60;
+	const totalMinutes = Math.floor(totalSeconds / 60);
+	const minutes = totalMinutes % 60;
+	const hours = Math.floor(totalMinutes / 60);
+
+	if (hours > 0) return `${hours}h${minutes.toString().padStart(2, "0")}m`;
+	if (minutes > 0) return `${minutes}m${seconds.toString().padStart(2, "0")}s`;
+	return `${seconds}s`;
+}
+
 export function formatCwdForFooter(cwd: string, home: string | undefined): string {
 	if (!home) return cwd;
 
@@ -49,6 +61,7 @@ export function formatCwdForFooter(cwd: string, home: string | undefined): strin
  */
 export class FooterComponent implements Component {
 	private autoCompactEnabled = true;
+	private idleStartedAt: number | undefined = Date.now();
 	private session: AgentSession;
 	private footerData: ReadonlyFooterDataProvider;
 
@@ -126,7 +139,19 @@ export class FooterComponent implements Component {
 		}
 
 		// Build stats line
-		const statsParts = [];
+		const watchdogStatus = this.footerData.getWatchdogStatus?.();
+		if (watchdogStatus || this.session.isStreaming) {
+			this.idleStartedAt = undefined;
+		} else {
+			this.idleStartedAt ??= Date.now();
+		}
+		const idleStartedAt = this.idleStartedAt ?? Date.now();
+		const statusPart = watchdogStatus
+			? `working ${formatElapsed(Date.now() - watchdogStatus.startedAt)}/${formatElapsed(watchdogStatus.timeoutMs)}`
+			: this.session.isStreaming
+				? "working"
+				: `idle ${formatElapsed(Date.now() - idleStartedAt)}`;
+		const statsParts = [statusPart];
 		if (usageTotals.input) statsParts.push(`↑${formatTokens(usageTotals.input)}`);
 		if (usageTotals.output) statsParts.push(`↓${formatTokens(usageTotals.output)}`);
 		if (usageTotals.cacheRead) statsParts.push(`R${formatTokens(usageTotals.cacheRead)}`);
