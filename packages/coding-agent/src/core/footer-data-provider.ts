@@ -9,6 +9,12 @@ export type GitPaths = {
 	headPath: string;
 };
 
+export type FooterWatchdogStatus = {
+	startedAt: number;
+	timeoutMs: number;
+	reason: string;
+};
+
 /**
  * Find git metadata paths by walking up from cwd.
  * Handles both regular git repos (.git is a directory) and worktrees (.git is a file).
@@ -101,6 +107,7 @@ export class FooterDataProvider {
 	private static readonly WATCH_DEBOUNCE_MS = 500;
 
 	private extensionStatuses = new Map<string, string>();
+	private watchdogStatus: FooterWatchdogStatus | undefined = undefined;
 	private cachedBranch: string | null | undefined = undefined;
 	private gitPaths: GitPaths | null | undefined = undefined;
 	private headWatcher: FSWatcher | null = null;
@@ -136,10 +143,20 @@ export class FooterDataProvider {
 		return this.extensionStatuses;
 	}
 
+	/** Watchdog countdown for states that may be stuck. */
+	getWatchdogStatus(): FooterWatchdogStatus | undefined {
+		return this.watchdogStatus;
+	}
+
 	/** Subscribe to git branch changes. Returns unsubscribe function. */
 	onBranchChange(callback: () => void): () => void {
 		this.branchChangeCallbacks.add(callback);
 		return () => this.branchChangeCallbacks.delete(callback);
+	}
+
+	/** Internal: update watchdog countdown status. */
+	setWatchdogStatus(status: FooterWatchdogStatus | undefined): void {
+		this.watchdogStatus = status;
 	}
 
 	/** Internal: set extension status */
@@ -384,5 +401,5 @@ export class FooterDataProvider {
 /** Read-only view for extensions - excludes setExtensionStatus, setAvailableProviderCount and dispose */
 export type ReadonlyFooterDataProvider = Pick<
 	FooterDataProvider,
-	"getGitBranch" | "getExtensionStatuses" | "getAvailableProviderCount" | "onBranchChange"
+	"getGitBranch" | "getExtensionStatuses" | "getWatchdogStatus" | "getAvailableProviderCount" | "onBranchChange"
 >;

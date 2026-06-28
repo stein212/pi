@@ -5,6 +5,7 @@ import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/rend
 import { convertToPng } from "../../../utils/image-convert.ts";
 import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
+import { addTimestampBlockEnd, addTimestampBlockStart, formatMessageTimestamp } from "./message-timestamps.ts";
 
 const FALLBACK_PREVIEW_LINES = 10;
 
@@ -34,6 +35,8 @@ export class ToolExecutionComponent extends Container {
 	private ui: TUI;
 	private cwd: string;
 	private executionStarted = false;
+	private executionStartedAt: number | undefined;
+	private executionEndedAt: number | undefined;
 	private argsComplete = false;
 	private result?: {
 		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
@@ -162,6 +165,8 @@ export class ToolExecutionComponent extends Container {
 
 	markExecutionStarted(): void {
 		this.executionStarted = true;
+		this.executionStartedAt ??= Date.now();
+		this.executionEndedAt = undefined;
 		this.updateDisplay();
 		this.ui.requestRender();
 	}
@@ -182,6 +187,10 @@ export class ToolExecutionComponent extends Container {
 	): void {
 		this.result = result;
 		this.isPartial = isPartial;
+		if (!isPartial) {
+			this.executionStartedAt ??= Date.now();
+			this.executionEndedAt ??= Date.now();
+		}
 		this.updateDisplay();
 		this.maybeConvertImagesForKitty();
 	}
@@ -276,6 +285,7 @@ export class ToolExecutionComponent extends Container {
 				renderContainer.setBgFn(bgFn);
 			}
 			renderContainer.clear();
+			addTimestampBlockStart(renderContainer, this.executionStartedAt);
 
 			const callRenderer = this.getCallRenderer();
 			if (!callRenderer) {
@@ -325,8 +335,17 @@ export class ToolExecutionComponent extends Container {
 			}
 		} else {
 			this.contentText.setCustomBgFn(bgFn);
-			this.contentText.setText(this.formatToolExecution());
+			const prefix =
+				this.executionStartedAt !== undefined ? `${formatMessageTimestamp(this.executionStartedAt)}\n\n` : "";
+			const suffix =
+				this.executionEndedAt !== undefined ? `\n\n${formatMessageTimestamp(this.executionEndedAt)}` : "";
+			this.contentText.setText(prefix + this.formatToolExecution() + suffix);
 			hasContent = true;
+		}
+
+		if (this.hasRendererDefinition()) {
+			const renderContainer = this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox;
+			addTimestampBlockEnd(renderContainer, this.executionEndedAt);
 		}
 
 		for (const img of this.imageComponents) {

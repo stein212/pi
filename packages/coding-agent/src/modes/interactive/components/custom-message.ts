@@ -4,6 +4,7 @@ import { Box, Container, Markdown, type MarkdownTheme, Spacer, Text } from "@ear
 import type { MessageRenderer } from "../../../core/extensions/types.ts";
 import type { CustomMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
+import { addTimestampBlockEnd, addTimestampBlockStart } from "./message-timestamps.ts";
 
 /**
  * Component that renders a custom message entry from extensions.
@@ -88,7 +89,8 @@ export class CustomMessageComponent extends Container {
 		this.addChild(this.box);
 		this.box.clear();
 
-		// Default rendering: label + content
+		// Default rendering: timestamps + label + content
+		addTimestampBlockStart(this.box, this.message.timestamp);
 		const label = theme.fg("customMessageLabel", `\x1b[1m[${this.message.customType}]\x1b[22m`);
 		this.box.addChild(new Text(label, 0, 0));
 		this.box.addChild(new Spacer(1));
@@ -109,5 +111,6 @@ export class CustomMessageComponent extends Container {
 				color: (text: string) => theme.fg("customMessageText", text),
 			}),
 		);
+		addTimestampBlockEnd(this.box, this.message.timestamp);
 	}
 }

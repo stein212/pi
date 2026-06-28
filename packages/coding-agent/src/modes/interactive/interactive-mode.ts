@@ -433,6 +433,8 @@ export class InteractiveMode {
 	private workingIndicatorOptions: WorkingIndicatorOptions | undefined = undefined;
 	private readonly defaultWorkingMessage = "Working...";
 	private readonly defaultHiddenThinkingLabel = "Thinking...";
+	private readonly stuckWorkingTimeoutMs = Number.parseInt(process.env.PI_STUCK_WATCHDOG_MS ?? "", 10) || 90_000;
+	private readonly stuckWorkingCheckMs = 5_000;
 	private hiddenThinkingLabel = this.defaultHiddenThinkingLabel;
 
 	private lastSigintTime = 0;
@@ -449,6 +451,7 @@ export class InteractiveMode {
 	// Streaming message tracking
 	private streamingComponent: AssistantMessageComponent | undefined = undefined;
 	private streamingMessage: AssistantMessage | undefined = undefined;
+	private streamingMessageStartedAt: number | undefined = undefined;
 
 	// Tool execution tracking: toolCallId -> component
 	private pendingTools = new Map<string, ToolExecutionComponent>();
@@ -469,6 +472,11 @@ export class InteractiveMode {
 
 	// Agent subscription unsubscribe function
 	private unsubscribe?: () => void;
+	private footerStatusTimer: ReturnType<typeof setInterval> | undefined = undefined;
+	private stuckWorkingWatchdog: ReturnType<typeof setInterval> | undefined = undefined;
+	private lastAgentActivityAt = 0;
+	private lastAgentActivityReason = "";
+	private autoResumeInProgress = false;
 	private signalCleanupHandlers: Array<() => void> = [];
 
 	// Track if editor is in bash mode (text starts with !)
@@ -914,6 +922,7 @@ export class InteractiveMode {
 		// Start the UI before initializing extensions so session_start handlers can use interactive dialogs
 		this.ui.start();
 		this.isInitialized = true;
+		this.startFooterStatusTimer();
 
 		await this.themeController.applyFromSettings();
 
@@ -3092,11 +3101,100 @@ export class InteractiveMode {
 		});
 	}
 
+	private bumpStuckWorkingWatchdog(reason: string): void {
+		this.lastAgentActivityAt = Date.now();
+		this.lastAgentActivityReason = reason;
+
+		if (!this.session.isStreaming && !this.loadingAnimation) {
+			this.stopStuckWorkingWatchdog();
+			return;
+		}
+
+		this.updateStuckWorkingFooterStatus();
+		if (this.stuckWorkingWatchdog) return;
+		this.stuckWorkingWatchdog = setInterval(() => {
+			void this.checkStuckWorkingWatchdog();
+		}, this.stuckWorkingCheckMs);
+	}
+
+	private updateStuckWorkingFooterStatus(): void {
+		if (!this.session.isStreaming && !this.loadingAnimation) {
+			this.footerDataProvider.setWatchdogStatus(undefined);
+			return;
+		}
+		this.footerDataProvider.setWatchdogStatus({
+			startedAt: this.lastAgentActivityAt || Date.now(),
+			timeoutMs: this.stuckWorkingTimeoutMs,
+			reason: this.lastAgentActivityReason,
+		});
+	}
+
+	private stopStuckWorkingWatchdog(): void {
+		if (this.stuckWorkingWatchdog) {
+			clearInterval(this.stuckWorkingWatchdog);
+			this.stuckWorkingWatchdog = undefined;
+		}
+		this.footerDataProvider.setWatchdogStatus(undefined);
+	}
+
+	private startFooterStatusTimer(): void {
+		if (this.footerStatusTimer) return;
+		this.footerStatusTimer = setInterval(() => {
+			if (this.isInitialized) {
+				this.ui.requestRender();
+			}
+		}, 1_000);
+		this.footerStatusTimer.unref?.();
+	}
+
+	private stopFooterStatusTimer(): void {
+		if (this.footerStatusTimer) {
+			clearInterval(this.footerStatusTimer);
+			this.footerStatusTimer = undefined;
+		}
+	}
+
+	private async checkStuckWorkingWatchdog(): Promise<void> {
+		const hasStaleWorkingUi = this.loadingAnimation !== undefined;
+		if (!this.session.isStreaming && !hasStaleWorkingUi) {
+			this.stopStuckWorkingWatchdog();
+			return;
+		}
+		this.updateStuckWorkingFooterStatus();
+		if (this.autoResumeInProgress) return;
+		if (Date.now() - this.lastAgentActivityAt < this.stuckWorkingTimeoutMs) return;
+
+		this.autoResumeInProgress = true;
+		this.showWarning(
+			`Auto-resume watchdog: recovering stuck operation after ${Math.round((Date.now() - this.lastAgentActivityAt) / 1000)}s without agent activity (${this.lastAgentActivityReason}).`,
+		);
+		try {
+			if (this.session.isStreaming) {
+				await this.session.abort();
+			} else if (hasStaleWorkingUi) {
+				this.stopWorkingLoader();
+				this.ui.requestRender();
+			}
+			setTimeout(() => {
+				void this.session
+					.prompt("resume", this.session.isStreaming ? { streamingBehavior: "followUp" } : undefined)
+					.catch((error) => {
+						this.showError(`Auto-resume failed: ${error instanceof Error ? error.message : String(error)}`);
+					});
+			}, 1_000);
+		} finally {
+			this.lastAgentActivityAt = Date.now();
+			this.lastAgentActivityReason = "auto_resume_recovery";
+			this.autoResumeInProgress = false;
+		}
+	}
+
 	private async handleEvent(event: AgentSessionEvent): Promise<void> {
 		if (!this.isInitialized) {
 			await this.init();
 		}
 
+		this.bumpStuckWorkingWatchdog(event.type);
 		this.footer.invalidate();
 
 		switch (event.type) {
@@ -3122,6 +3220,7 @@ export class InteractiveMode {
 				} else {
 					this.clearStatusIndicator();
 				}
+				this.updateStuckWorkingFooterStatus();
 				this.ui.requestRender();
 				break;
 
@@ -3157,6 +3256,7 @@ export class InteractiveMode {
 					this.updatePendingMessagesDisplay();
 					this.ui.requestRender();
 				} else if (event.message.role === "assistant") {
+					this.streamingMessageStartedAt = Date.now();
 					this.streamingComponent = new AssistantMessageComponent(
 						undefined,
 						this.hideThinkingBlock,
@@ -3164,9 +3264,11 @@ export class InteractiveMode {
 						this.hiddenThinkingLabel,
 						this.outputPad,
 						this.getMarkdownTransformers(),
+						this.streamingMessageStartedAt,
 					);
 					this.streamingMessage = event.message;
 					this.chatContainer.addChild(this.streamingComponent);
+					this.streamingComponent.setOutputPad(this.outputPad);
 					this.streamingComponent.updateContent(this.streamingMessage, true);
 					this.ui.requestRender();
 				}
@@ -3220,7 +3322,10 @@ export class InteractiveMode {
 								: "Operation aborted";
 						this.streamingMessage.errorMessage = errorMessage;
 					}
-					this.streamingComponent.updateContent(this.streamingMessage, false);
+					this.streamingComponent.updateContent(this.streamingMessage, false, {
+						startedAt: this.streamingMessageStartedAt,
+						endedAt: Date.now(),
+					});
 
 					if (this.streamingMessage.stopReason === "aborted" || this.streamingMessage.stopReason === "error") {
 						if (!errorMessage) {
@@ -3242,6 +3347,7 @@ export class InteractiveMode {
 					}
 					this.streamingComponent = undefined;
 					this.streamingMessage = undefined;
+					this.streamingMessageStartedAt = undefined;
 					this.footer.invalidate();
 				}
 				this.ui.requestRender();
@@ -3295,6 +3401,7 @@ export class InteractiveMode {
 			}
 
 			case "agent_end":
+				this.streamingMessageStartedAt = undefined;
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(false);
 				}
@@ -3305,6 +3412,7 @@ export class InteractiveMode {
 					this.streamingMessage = undefined;
 				}
 				this.pendingTools.clear();
+				this.stopStuckWorkingWatchdog();
 
 				this.ui.requestRender();
 				break;
@@ -3561,6 +3669,7 @@ export class InteractiveMode {
 								this.getMarkdownThemeWithSettings(),
 								this.outputPad,
 								this.getMarkdownTransformers(),
+								message.timestamp,
 							);
 							this.chatContainer.addChild(userComponent);
 						}
@@ -3570,6 +3679,7 @@ export class InteractiveMode {
 							this.getMarkdownThemeWithSettings(),
 							this.outputPad,
 							this.getMarkdownTransformers(),
+							message.timestamp,
 						);
 						this.chatContainer.addChild(userComponent);
 					}
@@ -3587,6 +3697,8 @@ export class InteractiveMode {
 					this.hiddenThinkingLabel,
 					this.outputPad,
 					this.getMarkdownTransformers(),
+					message.timestamp,
+					message.timestamp,
 				);
 				this.chatContainer.addChild(assistantComponent);
 				break;
@@ -6428,6 +6540,8 @@ export class InteractiveMode {
 
 	stop(fullscreenExitOutput = this.settingsManager.getFullscreenExitOutput()): void {
 		this.disposeActiveSelector();
+		this.stopStuckWorkingWatchdog();
+		this.stopFooterStatusTimer();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}

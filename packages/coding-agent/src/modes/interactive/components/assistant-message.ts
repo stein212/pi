@@ -3,6 +3,7 @@ import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
+import { addTimestampBlockEnd, addTimestampBlockStart } from "./message-timestamps.ts";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
@@ -19,6 +20,8 @@ export class AssistantMessageComponent extends Container {
 	private outputPad: number;
 	private markdownTransformers: readonly MarkdownTransformer[];
 	private lastMessage?: AssistantMessage;
+	private startedAt?: number;
+	private endedAt?: number;
 	private hasToolCalls = false;
 	private isStreaming = false;
 
@@ -29,6 +32,8 @@ export class AssistantMessageComponent extends Container {
 		hiddenThinkingLabel = "Thinking...",
 		outputPad = 1,
 		markdownTransformers: readonly MarkdownTransformer[] = [],
+		startedAt?: number,
+		endedAt?: number,
 	) {
 		super();
 
@@ -37,6 +42,8 @@ export class AssistantMessageComponent extends Container {
 		this.hiddenThinkingLabel = hiddenThinkingLabel;
 		this.outputPad = outputPad;
 		this.markdownTransformers = markdownTransformers;
+		this.startedAt = startedAt;
+		this.endedAt = endedAt;
 
 		// Container for text/thinking content
 		this.contentContainer = new Container();
@@ -86,9 +93,15 @@ export class AssistantMessageComponent extends Container {
 		return lines;
 	}
 
-	updateContent(message: AssistantMessage, isStreaming = this.isStreaming): void {
+	updateContent(message: AssistantMessage, isStreaming = this.isStreaming, timestamps?: { startedAt?: number; endedAt?: number }): void {
 		this.lastMessage = message;
 		this.isStreaming = isStreaming;
+		if (timestamps?.startedAt !== undefined) {
+			this.startedAt = timestamps.startedAt;
+		}
+		if (timestamps?.endedAt !== undefined) {
+			this.endedAt = timestamps.endedAt;
+		}
 
 		// Clear content container
 		this.contentContainer.clear();
@@ -107,11 +120,13 @@ export class AssistantMessageComponent extends Container {
 			if (content.type === "text" && content.text.trim()) {
 				// Assistant text messages with no background - trim the text
 				// Set paddingY=0 to avoid extra spacing before tool executions
+				addTimestampBlockStart(this.contentContainer, this.startedAt ?? message.timestamp);
 				this.contentContainer.addChild(
 					new Markdown(content.text.trim(), this.outputPad, 0, this.markdownTheme, undefined, {
 						transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
 					}),
 				);
+				addTimestampBlockEnd(this.contentContainer, this.endedAt);
 			} else if (content.type === "thinking") {
 				const thinkingBlocks: string[] = [];
 				for (; i < message.content.length; i++) {
@@ -138,11 +153,14 @@ export class AssistantMessageComponent extends Container {
 
 				if (this.hideThinkingBlock) {
 					// Show one static label for each run of thinking blocks when hidden.
+					addTimestampBlockStart(this.contentContainer, this.startedAt ?? message.timestamp);
 					this.contentContainer.addChild(
 						new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0),
 					);
+					addTimestampBlockEnd(this.contentContainer, this.endedAt);
 				} else {
 					// Render each run of thinking blocks as one Markdown section.
+					addTimestampBlockStart(this.contentContainer, this.startedAt ?? message.timestamp);
 					this.contentContainer.addChild(
 						new Markdown(
 							thinkingBlocks.join("\n\n"),
@@ -162,6 +180,7 @@ export class AssistantMessageComponent extends Container {
 							},
 						),
 					);
+					addTimestampBlockEnd(this.contentContainer, this.endedAt);
 				}
 				if (hasVisibleContentAfter) {
 					this.contentContainer.addChild(new Spacer(1));
