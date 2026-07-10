@@ -228,7 +228,7 @@ export class FooterComponent implements Component {
 		let statsLine: string;
 		if (totalNeeded <= width) {
 			// Both fit - add padding to right-align model
-			const padding = " ".repeat(width - statsLeftWidth - rightSideWidth);
+			const padding = " ".repeat(Math.max(0, width - statsLeftWidth - rightSideWidth));
 			statsLine = statsLeft + padding + rightSide;
 		} else {
 			// Need to truncate right side
