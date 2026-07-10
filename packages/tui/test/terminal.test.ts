@@ -297,4 +297,44 @@ describe("ProcessTerminal dimensions", () => {
 			}
 		}
 	});
+
+	it("treats a reported width of 1 as invalid and falls back to defaults", () => {
+		const previousColumnsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "columns");
+		const previousRowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
+		const previousColumns = process.env.COLUMNS;
+		const previousLines = process.env.LINES;
+
+		try {
+			Object.defineProperty(process.stdout, "columns", { value: 1, configurable: true });
+			Object.defineProperty(process.stdout, "rows", { value: 1, configurable: true });
+			delete process.env.COLUMNS;
+			delete process.env.LINES;
+
+			const terminal = new ProcessTerminal();
+
+			assert.equal(terminal.columns, 80);
+			assert.equal(terminal.rows, 24);
+		} finally {
+			if (previousColumnsDescriptor) {
+				Object.defineProperty(process.stdout, "columns", previousColumnsDescriptor);
+			} else {
+				Reflect.deleteProperty(process.stdout, "columns");
+			}
+			if (previousRowsDescriptor) {
+				Object.defineProperty(process.stdout, "rows", previousRowsDescriptor);
+			} else {
+				Reflect.deleteProperty(process.stdout, "rows");
+			}
+			if (previousColumns === undefined) {
+				delete process.env.COLUMNS;
+			} else {
+				process.env.COLUMNS = previousColumns;
+			}
+			if (previousLines === undefined) {
+				delete process.env.LINES;
+			} else {
+				process.env.LINES = previousLines;
+			}
+		}
+	});
 });

@@ -50,6 +50,17 @@ export function normalizeNativeShiftEnterInput(
 	return data;
 }
 
+function readTerminalDimension(primary: number | undefined, envValue: string | undefined, fallback: number): number {
+	if (primary !== undefined && Number.isFinite(primary) && primary > 1) {
+		return primary;
+	}
+	const envDimension = Number(envValue);
+	if (Number.isFinite(envDimension) && envDimension > 1) {
+		return envDimension;
+	}
+	return fallback;
+}
+
 export function normalizeAppleTerminalInput(data: string, isAppleTerminal: boolean, isShiftPressed: boolean): string {
 	return normalizeNativeShiftEnterInput(data, isAppleTerminal, isShiftPressed);
 }
@@ -491,11 +502,11 @@ export class ProcessTerminal implements Terminal {
 	}
 
 	get columns(): number {
-		return process.stdout.columns || Number(process.env.COLUMNS) || 80;
+		return readTerminalDimension(process.stdout.columns, process.env.COLUMNS, 80);
 	}
 
 	get rows(): number {
-		return process.stdout.rows || Number(process.env.LINES) || 24;
+		return readTerminalDimension(process.stdout.rows, process.env.LINES, 24);
 	}
 
 	moveBy(lines: number): void {
