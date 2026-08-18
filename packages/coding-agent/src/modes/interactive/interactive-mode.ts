@@ -433,8 +433,9 @@ export class InteractiveMode {
 	private workingIndicatorOptions: WorkingIndicatorOptions | undefined = undefined;
 	private readonly defaultWorkingMessage = "Working...";
 	private readonly defaultHiddenThinkingLabel = "Thinking...";
-	private readonly stuckWorkingTimeoutMs = Number.parseInt(process.env.PI_STUCK_WATCHDOG_MS ?? "", 10) || 90_000;
+	private stuckWorkingTimeoutMs = resolveStuckWorkingTimeoutMs(process.env.PI_STUCK_WATCHDOG_MS);
 	private readonly stuckWorkingCheckMs = 5_000;
+	private readonly activeToolTimeoutDeadlines = new Map<string, number>();
 	private hiddenThinkingLabel = this.defaultHiddenThinkingLabel;
 
 	private lastSigintTime = 0;
@@ -3105,28 +3106,50 @@ export class InteractiveMode {
 		this.lastAgentActivityAt = Date.now();
 		this.lastAgentActivityReason = reason;
 
-		if (!this.session.isStreaming && !this.loadingAnimation) {
+		if (this.isStuckWorkingWatchdogDisabled()) {
+			this.stopStuckWorkingWatchdog();
+			return;
+		}
+
+		if (!this.session.isStreaming && this.activeStatusIndicator?.kind !== "working") {
 			this.stopStuckWorkingWatchdog();
 			return;
 		}
 
 		this.updateStuckWorkingFooterStatus();
+		this.startStuckWorkingWatchdog();
+	}
+
+	private updateStuckWorkingFooterStatus(): void {
+		if (
+			this.isStuckWorkingWatchdogDisabled() ||
+			(!this.session.isStreaming && this.activeStatusIndicator?.kind !== "working")
+		) {
+			this.footerDataProvider.setWatchdogStatus(undefined);
+			return;
+		}
+		const startedAt = this.lastAgentActivityAt || Date.now();
+		const deadline = getWatchdogDeadline(
+			startedAt,
+			this.stuckWorkingTimeoutMs,
+			this.activeToolTimeoutDeadlines.values(),
+		);
+		this.footerDataProvider.setWatchdogStatus({
+			startedAt,
+			timeoutMs: deadline - startedAt,
+			reason: this.lastAgentActivityReason,
+		});
+	}
+
+	private startStuckWorkingWatchdog(): void {
 		if (this.stuckWorkingWatchdog) return;
 		this.stuckWorkingWatchdog = setInterval(() => {
 			void this.checkStuckWorkingWatchdog();
 		}, this.stuckWorkingCheckMs);
 	}
 
-	private updateStuckWorkingFooterStatus(): void {
-		if (!this.session.isStreaming && !this.loadingAnimation) {
-			this.footerDataProvider.setWatchdogStatus(undefined);
-			return;
-		}
-		this.footerDataProvider.setWatchdogStatus({
-			startedAt: this.lastAgentActivityAt || Date.now(),
-			timeoutMs: this.stuckWorkingTimeoutMs,
-			reason: this.lastAgentActivityReason,
-		});
+	private isStuckWorkingWatchdogDisabled(): boolean {
+		return this.stuckWorkingTimeoutMs <= 0;
 	}
 
 	private stopStuckWorkingWatchdog(): void {
@@ -3155,14 +3178,23 @@ export class InteractiveMode {
 	}
 
 	private async checkStuckWorkingWatchdog(): Promise<void> {
-		const hasStaleWorkingUi = this.loadingAnimation !== undefined;
+		if (this.isStuckWorkingWatchdogDisabled()) {
+			this.stopStuckWorkingWatchdog();
+			return;
+		}
+		const hasStaleWorkingUi = this.activeStatusIndicator?.kind === "working";
 		if (!this.session.isStreaming && !hasStaleWorkingUi) {
 			this.stopStuckWorkingWatchdog();
 			return;
 		}
 		this.updateStuckWorkingFooterStatus();
 		if (this.autoResumeInProgress) return;
-		if (Date.now() - this.lastAgentActivityAt < this.stuckWorkingTimeoutMs) return;
+		const deadline = getWatchdogDeadline(
+			this.lastAgentActivityAt,
+			this.stuckWorkingTimeoutMs,
+			this.activeToolTimeoutDeadlines.values(),
+		);
+		if (Date.now() < deadline) return;
 
 		this.autoResumeInProgress = true;
 		this.showWarning(
@@ -3172,7 +3204,7 @@ export class InteractiveMode {
 			if (this.session.isStreaming) {
 				await this.session.abort();
 			} else if (hasStaleWorkingUi) {
-				this.stopWorkingLoader();
+				this.clearStatusIndicator("working");
 				this.ui.requestRender();
 			}
 			setTimeout(() => {
@@ -3200,6 +3232,7 @@ export class InteractiveMode {
 		switch (event.type) {
 			case "agent_start":
 				this.pendingTools.clear();
+				this.activeToolTimeoutDeadlines.clear();
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(true);
 				}
@@ -3358,6 +3391,17 @@ export class InteractiveMode {
 				break;
 
 			case "tool_execution_start": {
+				const timeoutDeadline =
+					event.toolName === "bash"
+						? getBashToolTimeoutDeadline(event.args, Date.now(), this.stuckWorkingCheckMs)
+						: undefined;
+				if (timeoutDeadline !== undefined) {
+					this.activeToolTimeoutDeadlines.set(event.toolCallId, timeoutDeadline);
+				} else {
+					this.activeToolTimeoutDeadlines.delete(event.toolCallId);
+				}
+				this.updateStuckWorkingFooterStatus();
+
 				let component = this.pendingTools.get(event.toolCallId);
 				if (!component) {
 					component = new ToolExecutionComponent(
@@ -3391,6 +3435,8 @@ export class InteractiveMode {
 			}
 
 			case "tool_execution_end": {
+				this.activeToolTimeoutDeadlines.delete(event.toolCallId);
+				this.updateStuckWorkingFooterStatus();
 				const component = this.pendingTools.get(event.toolCallId);
 				if (component) {
 					component.updateResult({ ...event.result, isError: event.isError });
@@ -3402,6 +3448,7 @@ export class InteractiveMode {
 
 			case "agent_end":
 				this.streamingMessageStartedAt = undefined;
+				this.activeToolTimeoutDeadlines.clear();
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(false);
 				}

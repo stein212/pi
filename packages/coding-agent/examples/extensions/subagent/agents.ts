@@ -13,6 +13,8 @@ export interface AgentConfig {
 	description: string;
 	tools?: string[];
 	model?: string;
+	env?: NodeJS.ProcessEnv;
+	watchdogTimeoutMs?: number;
 	systemPrompt: string;
 	source: "user" | "project";
 	filePath: string;
@@ -36,6 +38,8 @@ type AgentFrontmatter = {
 	description?: unknown;
 	tools?: unknown;
 	model?: unknown;
+	env?: unknown;
+	watchdogTimeoutMs?: unknown;
 };
 
 /**
@@ -57,6 +61,26 @@ function parseToolList(value: unknown): string[] | undefined {
 		.map((t) => t.trim())
 		.filter(Boolean);
 	return tools.length > 0 ? tools : undefined;
+}
+
+function parseAgentEnv(frontmatter: AgentFrontmatter): NodeJS.ProcessEnv | undefined {
+	const rawEnv = frontmatter.env;
+	if (typeof rawEnv !== "object" || rawEnv === null || Array.isArray(rawEnv)) return undefined;
+
+	const env: NodeJS.ProcessEnv = {};
+	for (const [key, value] of Object.entries(rawEnv)) {
+		if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+			env[key] = String(value);
+		}
+	}
+	return Object.keys(env).length > 0 ? env : undefined;
+}
+
+function parseWatchdogTimeoutMs(frontmatter: AgentFrontmatter): number | undefined {
+	const rawValue = frontmatter.watchdogTimeoutMs;
+	const timeoutMs = typeof rawValue === "string" ? Number.parseInt(rawValue, 10) : rawValue;
+	if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs < 0) return undefined;
+	return Math.floor(timeoutMs);
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -96,6 +120,8 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			description: frontmatter.description,
 			tools: parseToolList(frontmatter.tools),
 			model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+			env: parseAgentEnv(frontmatter),
+			watchdogTimeoutMs: parseWatchdogTimeoutMs(frontmatter),
 			systemPrompt: body,
 			source,
 			filePath,

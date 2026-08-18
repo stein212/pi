@@ -22,7 +22,9 @@ subagent/
 │   ├── scout.md         # Fast recon, returns compressed context
 │   ├── planner.md       # Creates implementation plans
 │   ├── reviewer.md      # Code review
-│   └── worker.md        # General-purpose (full capabilities)
+│   ├── worker.md        # General-purpose (full capabilities)
+│   ├── terra.md         # Implementation specialist
+│   └── luna.md          # Verification specialist with watchdog disabled
 └── prompts/             # Workflow presets (prompt templates)
     ├── implement.md     # scout -> planner -> worker
     ├── scout-and-plan.md    # scout -> planner (no implementation)
@@ -144,6 +146,10 @@ When `model` is omitted, the subagent inherits the dispatching session's active 
 - `.pi/agents/*.md` - Project-level (only with `agentScope: "project"` or `"both"`)
 
 Project agents override user agents with the same name when `agentScope: "both"`.
+
+Optional frontmatter fields:
+- `watchdogTimeoutMs: 0` disables the interactive auto-resume watchdog for that subagent process.
+- `env:` can inject additional environment variables into the spawned `pi` subprocess.
 
 ## Sample Agents
 

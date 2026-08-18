@@ -60,9 +60,10 @@ export class Text implements Component {
 		// Replace tabs with 3 spaces
 		const normalizedText = this.text.replace(/\t/g, "   ");
 
-		// Calculate effective padding. Very narrow terminals may not have enough
-		// room for both horizontal padding and content, so clamp padding to width.
-		const leftPadding = Math.min(this.paddingX, Math.max(0, width - 1));
+		// Calculate effective padding. Very narrow terminals bias padding to the right
+		// so content stays flush-left instead of gaining a leading space.
+		const biasRight = width <= this.paddingX * 2 + 3;
+		const leftPadding = biasRight ? 0 : Math.min(this.paddingX, Math.max(0, width - 1));
 		const rightPadding = Math.min(this.paddingX, Math.max(0, width - leftPadding - 1));
 		const contentWidth = Math.max(1, width - leftPadding - rightPadding);
 

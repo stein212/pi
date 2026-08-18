@@ -1,5 +1,5 @@
 import type { Component } from "../tui.ts";
-import { applyBackgroundToLine, visibleWidth } from "../utils.ts";
+import { applyBackgroundToLine, sliceByColumn, visibleWidth } from "../utils.ts";
 
 type RenderCache = {
 	childLines: string[];
@@ -76,15 +76,23 @@ export class Box implements Component {
 			return [];
 		}
 
-		const contentWidth = Math.max(1, width - this.paddingX * 2);
-		const leftPad = " ".repeat(this.paddingX);
+		const biasRight = width <= this.paddingX * 2 + 3;
+		const leftPadding = biasRight ? 0 : Math.min(this.paddingX, Math.max(0, width - 1));
+		const rightPadding = Math.min(this.paddingX, Math.max(0, width - leftPadding - 1));
+		const contentWidth = Math.max(1, width - leftPadding - rightPadding);
+		const leftPad = " ".repeat(leftPadding);
+		const rightPad = " ".repeat(rightPadding);
 
 		// Render all children
 		const childLines: string[] = [];
 		for (const child of this.children) {
 			const lines = child.render(contentWidth);
 			for (const line of lines) {
-				childLines.push(leftPad + line);
+				const lineWithMargins =
+					leftPad +
+					(visibleWidth(line) > contentWidth ? sliceByColumn(line, 0, contentWidth, true) : line) +
+					rightPad;
+				childLines.push(lineWithMargins);
 			}
 		}
 

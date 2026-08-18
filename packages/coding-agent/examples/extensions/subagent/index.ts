@@ -306,6 +306,14 @@ async function runSingleAgent(
 	}
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
+	const agentEnv = {
+		...process.env,
+		...(agent.env ?? {}),
+	};
+	if (agent.watchdogTimeoutMs !== undefined) {
+		agentEnv.PI_STUCK_WATCHDOG_MS = String(agent.watchdogTimeoutMs);
+	}
+
 	let tmpPromptDir: string | null = null;
 	let tmpPromptPath: string | null = null;
 
@@ -345,6 +353,7 @@ async function runSingleAgent(
 			const invocation = getPiInvocation(args);
 			const proc = spawn(invocation.command, invocation.args, {
 				cwd: cwd ?? defaultCwd,
+				env: agentEnv,
 				shell: false,
 				stdio: ["ignore", "pipe", "pipe"],
 			});
