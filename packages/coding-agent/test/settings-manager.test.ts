@@ -450,10 +450,10 @@ describe("SettingsManager", () => {
 	});
 
 	describe("outputPad", () => {
-		it("should default to 1 and persist binary values", async () => {
+		it("should default to 0 and persist binary values", async () => {
 			const manager = SettingsManager.create(projectDir, agentDir);
 
-			expect(manager.getOutputPad()).toBe(1);
+			expect(manager.getOutputPad()).toBe(0);
 
 			manager.setOutputPad(0);
 			await manager.flush();
@@ -468,7 +468,7 @@ describe("SettingsManager", () => {
 
 			const manager = SettingsManager.create(projectDir, agentDir);
 
-			expect(manager.getOutputPad()).toBe(1);
+			expect(manager.getOutputPad()).toBe(0);
 		});
 	});
 

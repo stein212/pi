@@ -480,8 +480,8 @@ export class Editor implements Component, Focusable {
 	}
 
 	render(width: number): string[] {
-		const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
-		const paddingX = Math.min(this.paddingX, maxPadding);
+		const biasRight = width <= this.paddingX * 2 + 3;
+		const paddingX = biasRight ? 0 : Math.min(this.paddingX, Math.max(0, width - 1));
 		const contentWidth = Math.max(1, width - paddingX * 2);
 
 		// Layout width: with padding the cursor can overflow into it,

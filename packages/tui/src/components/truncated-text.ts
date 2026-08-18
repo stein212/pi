@@ -30,8 +30,11 @@ export class TruncatedText implements Component {
 			result.push(emptyLine);
 		}
 
-		// Calculate available width after horizontal padding
-		const availableWidth = Math.max(1, width - this.paddingX * 2);
+		// Calculate effective padding. Very narrow terminals bias padding to the right
+		// so content stays flush-left instead of gaining a leading space.
+		const biasRight = width <= this.paddingX * 2 + 3;
+		const paddingX = biasRight ? 0 : Math.min(this.paddingX, Math.max(0, width - 1));
+		const availableWidth = Math.max(1, width - paddingX * 2);
 
 		// Take only the first line (stop at newline)
 		let singleLineText = this.text;
@@ -44,8 +47,8 @@ export class TruncatedText implements Component {
 		const displayText = truncateToWidth(singleLineText, availableWidth);
 
 		// Add horizontal padding
-		const leftPadding = " ".repeat(this.paddingX);
-		const rightPadding = " ".repeat(this.paddingX);
+		const leftPadding = " ".repeat(paddingX);
+		const rightPadding = " ".repeat(paddingX);
 		const lineWithPadding = leftPadding + displayText + rightPadding;
 
 		// Pad line to exactly width characters

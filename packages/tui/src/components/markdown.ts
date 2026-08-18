@@ -280,8 +280,11 @@ export class Markdown implements Component {
 			return this.cachedLines;
 		}
 
-		// Calculate available width for content (subtract horizontal padding)
-		const contentWidth = Math.max(1, width - this.paddingX * 2);
+		// Calculate effective padding. Very narrow terminals bias padding to the right
+		// so content stays flush-left instead of gaining a leading space.
+		const biasRight = width <= this.paddingX * 2 + 3;
+		const paddingX = biasRight ? 0 : Math.min(this.paddingX, Math.max(0, width - 1));
+		const contentWidth = Math.max(1, width - paddingX * 2);
 		const text = this.options.transform?.(this.text, contentWidth) ?? this.text;
 
 		// Don't render anything if there's no actual text
@@ -326,8 +329,8 @@ export class Markdown implements Component {
 		}
 
 		// Add margins and background to each wrapped line
-		const leftMargin = " ".repeat(this.paddingX);
-		const rightMargin = " ".repeat(this.paddingX);
+		const leftMargin = " ".repeat(paddingX);
+		const rightMargin = " ".repeat(paddingX);
 		const bgFn = this.defaultTextStyle?.bgColor;
 		const contentLines: string[] = [];
 
