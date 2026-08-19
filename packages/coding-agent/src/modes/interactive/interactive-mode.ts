@@ -168,6 +168,7 @@ import {
 	theme,
 } from "./theme/theme.ts";
 import { InteractiveThemeController } from "./theme/theme-controller.ts";
+import { getBashToolTimeoutDeadline, getWatchdogDeadline, resolveStuckWorkingTimeoutMs } from "./watchdog.ts";
 
 /** Interface for components that can be expanded/collapsed */
 interface Expandable {

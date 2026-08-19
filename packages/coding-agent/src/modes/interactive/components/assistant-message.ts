@@ -30,7 +30,7 @@ export class AssistantMessageComponent extends Container {
 		hideThinkingBlock = false,
 		markdownTheme: MarkdownTheme = getMarkdownTheme(),
 		hiddenThinkingLabel = "Thinking...",
-		outputPad = 1,
+		outputPad = 0,
 		markdownTransformers: readonly MarkdownTransformer[] = [],
 		startedAt?: number,
 		endedAt?: number,
@@ -93,7 +93,11 @@ export class AssistantMessageComponent extends Container {
 		return lines;
 	}
 
-	updateContent(message: AssistantMessage, isStreaming = this.isStreaming, timestamps?: { startedAt?: number; endedAt?: number }): void {
+	updateContent(
+		message: AssistantMessage,
+		isStreaming = this.isStreaming,
+		timestamps?: { startedAt?: number; endedAt?: number },
+	): void {
 		this.lastMessage = message;
 		this.isStreaming = isStreaming;
 		if (timestamps?.startedAt !== undefined) {

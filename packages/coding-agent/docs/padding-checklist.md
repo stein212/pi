@@ -33,14 +33,15 @@ Status legend: `[x]` implemented or audited; `[ ]` still required.
 - [x] Coding-agent message padding tests.
 - [x] Footer width and terminal rendering tests.
 
-## v0.81.1 integration and packaging
+## v0.84.2 rebase and packaging
 
-- [x] Fetch `origin/main` and the `v0.81.1` tag.
-- [ ] Preserve this checklist and all padding behavior while rebasing onto `origin/main` (`v0.81.1` plus the next-cycle commit).
-- [ ] Resolve rebase conflicts and verify the resulting branch diff.
-- [ ] Run affected tests and `npm run check`.
-- [ ] Clean stale package artifacts and rebuild `packages/tui` and `packages/coding-agent`.
-- [ ] Pack fresh v0.81.1-compatible `.tgz` artifacts and verify their version and bundled `dist` output.
+- [x] Fetch `upstream` and the `v0.84.2` tag (latest release at rebase time).
+- [x] Preserve this checklist and all padding behavior while rebasing onto `v0.84.2`.
+- [x] Resolve rebase conflicts (TUI components, message components, footer, watchdog internals, subagent agents) and verify the resulting branch diff.
+- [x] Run affected tests (coding-agent watchdog/settings/padding tests, TUI narrow-width/box/editor/terminal tests) — all pass.
+- [x] Run `npm run check` — passes except a pre-existing upstream v0.84.2 failure in `packages/ai/test/stream.test.ts` (references `claude-sonnet-4-5` via cloudflare gateway, no longer in the committed catalog; file unchanged from v0.84.2).
+- [x] Clean stale package artifacts and rebuild `packages/ai`, `packages/telemetry`, `packages/protocol`, `packages/client`, `packages/tui`, `packages/agent`, and `packages/coding-agent`.
+- [ ] Pack fresh v0.84.2-compatible `.tgz` artifacts and verify their version and bundled `dist` output.
 
 ## Behavior notes
 

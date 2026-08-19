@@ -21,7 +21,7 @@ export class UserMessageComponent extends Container {
 	constructor(
 		text: string,
 		markdownTheme: MarkdownTheme = getMarkdownTheme(),
-		outputPad = 1,
+		outputPad = 0,
 		markdownTransformers: readonly MarkdownTransformer[] = [],
 		timestamp?: number,
 	) {
