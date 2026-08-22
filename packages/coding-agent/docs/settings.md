@@ -242,7 +242,7 @@ An empty array starts with no built-in tools while preserving extension and SDK 
 
 When multiple sources specify a session directory, precedence is `--session-dir`, `PI_CODING_AGENT_SESSION_DIR`, then `sessionDir` in settings.json.
 
-Set `PI_STUCK_WATCHDOG_MS=0` to disable the stuck-working auto-resume watchdog for that session. Set it to a positive integer to override the 90s default in milliseconds.
+The stuck-working auto-resume watchdog is disabled by default. Set `PI_STUCK_WATCHDOG_MS` to a positive integer to enable it with a timeout in milliseconds. Set `PI_STUCK_WATCHDOG_MS=0` to disable it explicitly for a session.
 
 ### Model Cycling
 

@@ -1,7 +1,9 @@
+const DEFAULT_STUCK_WORKING_TIMEOUT_MS = 0;
+
 export function resolveStuckWorkingTimeoutMs(rawTimeoutMs: string | undefined): number {
-	if (rawTimeoutMs === undefined || rawTimeoutMs.trim() === "") return 90_000;
+	if (rawTimeoutMs === undefined || rawTimeoutMs.trim() === "") return DEFAULT_STUCK_WORKING_TIMEOUT_MS;
 	const timeoutMs = Number.parseInt(rawTimeoutMs, 10);
-	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) return 90_000;
+	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) return DEFAULT_STUCK_WORKING_TIMEOUT_MS;
 	return timeoutMs;
 }
 

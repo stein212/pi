@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Disabled the stuck-working auto-resume watchdog by default. Set `PI_STUCK_WATCHDOG_MS` to a positive value to enable it.
+
 ## [0.84.2] - 2026-08-14
 
 ### New Features

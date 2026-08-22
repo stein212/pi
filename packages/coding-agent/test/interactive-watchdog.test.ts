@@ -27,9 +27,10 @@ describe("interactive watchdog deadlines", () => {
 		expect(getBashToolTimeoutDeadline({ timeout: "120" }, 1_000, 5_000)).toBeUndefined();
 	});
 
-	test("allows disabling the watchdog via zero", () => {
+	test("disables the watchdog by default and allows enabling it", () => {
+		expect(resolveStuckWorkingTimeoutMs(undefined)).toBe(0);
+		expect(resolveStuckWorkingTimeoutMs("not-a-number")).toBe(0);
 		expect(resolveStuckWorkingTimeoutMs("0")).toBe(0);
-		expect(resolveStuckWorkingTimeoutMs(undefined)).toBe(90_000);
-		expect(resolveStuckWorkingTimeoutMs("not-a-number")).toBe(90_000);
+		expect(resolveStuckWorkingTimeoutMs("90000")).toBe(90_000);
 	});
 });
