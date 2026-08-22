@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Disabled the stuck-working auto-resume watchdog by default. Set `PI_STUCK_WATCHDOG_MS` to a positive value to enable it.
+
 ### Fixed
 
 - Fixed the subagent example repeatedly prompting before running project-local agents in trusted repositories ([#8261](https://github.com/earendil-works/pi/issues/8261)).

@@ -14,7 +14,7 @@
 #   3. Rewrites the pnpm global package.json file: paths to the new tarballs.
 #   4. Runs pnpm -g install and verifies `pi --version`.
 #
-# The global install is driven by ~/.local/share/pnpm/global/5/package.json. Only
+# The global install is driven by pnpm's global package.json. Only
 # @earendil-works/pi-coding-agent and @earendil-works/pi-tui are installed locally;
 # the remaining pi packages are unchanged from the release and resolve from npm.
 
@@ -22,7 +22,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARBALL_DIR="$HOME/pi-tarballs"
-PNPM_GLOBAL_JSON="${PNPM_GLOBAL_JSON:-$HOME/.local/share/pnpm/global/5/package.json}"
+PNPM_GLOBAL_JSON="${PNPM_GLOBAL_JSON:-}"
 
 # Packages that carry local changes and therefore need the local tarball.
 # Compare with: git diff --stat v0.84.2 HEAD -- packages/<name>/
@@ -57,6 +57,16 @@ if [[ ! -f "$REPO_ROOT/package.json" ]] || ! grep -q '"name": "pi-monorepo"' "$R
 	exit 1
 fi
 
+if ! command -v pnpm >/dev/null 2>&1; then
+	echo "pnpm is required to install the local pi build." >&2
+	exit 1
+fi
+
+if [[ -z "$PNPM_GLOBAL_JSON" ]]; then
+	PNPM_GLOBAL_ROOT="$(pnpm root -g)"
+	PNPM_GLOBAL_JSON="$(dirname "$PNPM_GLOBAL_ROOT")/package.json"
+fi
+
 VERSION="$(node -p "require('$REPO_ROOT/packages/coding-agent/package.json').version")"
 echo "Local pi version: $VERSION"
 
@@ -70,7 +80,7 @@ run node "$REPO_ROOT/scripts/local-release.mjs" "${RELEASE_ARGS[@]}"
 OUT_DIR="/tmp/pi-local-release-$$/tarballs"
 
 # 2. Copy changed tarballs into the stable location.
-mkdir -p "$TARBALL_DIR"
+run mkdir -p "$TARBALL_DIR"
 for name in "${LOCAL_PACKAGES[@]}"; do
 	src="$OUT_DIR/$name-$VERSION.tgz"
 	if [[ "$DRY_RUN" -eq 0 && ! -f "$src" ]]; then
@@ -97,17 +107,19 @@ else
 const [globalJson, tarballDir, version] = process.argv.slice(2);
 const fs = require("node:fs");
 const pkg = JSON.parse(fs.readFileSync(globalJson, "utf8"));
-const changed = new Set(["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"]);
+const localPackages = new Map([
+	["@earendil-works/pi-coding-agent", "earendil-works-pi-coding-agent"],
+	["@earendil-works/pi-tui", "earendil-works-pi-tui"],
+]);
 let modified = false;
-for (const [dep, value] of Object.entries(pkg.dependencies)) {
-	if (!changed.has(dep) || typeof value !== "string" || !value.startsWith("file:")) continue;
-	const name = dep.split("/")[1];
-	const path = `${tarballDir}/earendil-works-${name}-${version}.tgz`;
+for (const [dep, name] of localPackages) {
+	if (!(dep in (pkg.dependencies || {}))) continue;
+	const path = `${tarballDir}/${name}-${version}.tgz`;
 	pkg.dependencies[dep] = `file:${path}`;
 	modified = true;
 }
 if (!modified) {
-	console.error("No local pi deps found in global package.json; nothing to rewrite.");
+	console.error("No local pi dependencies found in global package.json; nothing to rewrite.");
 	process.exit(1);
 }
 fs.writeFileSync(globalJson, `${JSON.stringify(pkg, null, "\t")}\n`);
