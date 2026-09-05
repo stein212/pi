@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { describe, expect, it } from "vitest";
 import { UserMessageSelectorComponent } from "../src/modes/interactive/components/user-message-selector.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 
