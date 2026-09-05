@@ -77,14 +77,21 @@ describe("xAI Responses provider", () => {
 		}
 	});
 
-	it("routes every built-in xAI model through Responses", () => {
-		for (const model of Object.values(XAI_MODELS)) {
-			expect(model.api, model.id).toBe("openai-responses");
-		}
+	it("routes built-in xAI models through their catalog APIs", () => {
+		expect(XAI_MODELS["grok-4.5"].api).toBe("openai-responses");
+		expect(XAI_MODELS["grok-4.6"].api).toBe("openai-completions");
+		expect(XAI_MODELS["grok-4.3"].api).toBe("openai-completions");
+		expect(XAI_MODELS["grok-build-0.1"].api).toBe("openai-completions");
 		expect(getSupportedThinkingLevels(XAI_MODELS["grok-4.5"])).toEqual(["low", "medium", "high"]);
-		expect(getSupportedThinkingLevels(XAI_MODELS["grok-4.6"])).toEqual(["low", "medium", "high", "xhigh"]);
-		expect(getSupportedThinkingLevels(XAI_MODELS["grok-4.3"])).toEqual(["off", "low", "medium", "high"]);
-		expect(getSupportedThinkingLevels(XAI_MODELS["grok-build-0.1"])).toEqual(["low", "medium", "high"]);
+		expect(getSupportedThinkingLevels(XAI_MODELS["grok-4.6"])).toEqual(["off", "minimal", "low", "medium", "high"]);
+		expect(getSupportedThinkingLevels(XAI_MODELS["grok-4.3"])).toEqual(["off", "minimal", "low", "medium", "high"]);
+		expect(getSupportedThinkingLevels(XAI_MODELS["grok-build-0.1"])).toEqual([
+			"off",
+			"minimal",
+			"low",
+			"medium",
+			"high",
+		]);
 	});
 
 	it("uses /responses with bearer auth and xAI-compatible request fields", async () => {
@@ -138,50 +145,6 @@ describe("xAI Responses provider", () => {
 			include: ["reasoning.encrypted_content"],
 		});
 		expect(captured.body).not.toHaveProperty("reasoning");
-	});
-
-	it("uses /responses for Grok 4.6 with xhigh effort and encrypted reasoning", async () => {
-		const captured = await captureRequest(
-			XAI_MODELS["grok-4.6"],
-			{
-				systemPrompt: "You are a careful coding assistant.",
-				messages: [{ role: "user", content: "hello", timestamp: 1 }],
-			},
-			{
-				apiKey: "xai-test-token",
-				reasoningEffort: "xhigh",
-			},
-		);
-
-		expect(captured.url).toBe("https://api.x.ai/v1/responses");
-		expect(captured.body).toMatchObject({
-			model: "grok-4.6",
-			store: false,
-			stream: true,
-			reasoning: { effort: "xhigh" },
-			include: ["reasoning.encrypted_content"],
-		});
-	});
-
-	it("uses /responses for Grok 4.3", async () => {
-		const captured = await captureRequest(
-			XAI_MODELS["grok-4.3"],
-			{
-				messages: [{ role: "user", content: "hello", timestamp: 1 }],
-			},
-			{
-				apiKey: "xai-test-token",
-				reasoningEffort: "low",
-			},
-		);
-
-		expect(captured.url).toBe("https://api.x.ai/v1/responses");
-		expect(captured.body).toMatchObject({
-			model: "grok-4.3",
-			store: false,
-			include: ["reasoning.encrypted_content"],
-			reasoning: { effort: "low" },
-		});
 	});
 
 	it("keeps the SDK User-Agent for non-xAI Responses requests", async () => {

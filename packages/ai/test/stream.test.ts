@@ -642,9 +642,9 @@ describe("Generate E2E Tests", () => {
 	);
 
 	describe.skipIf(!hasCloudflareAiGatewayCredentials())(
-		"Cloudflare AI Gateway → Workers AI (Kimi K2.6 via /compat)",
+		"Cloudflare AI Gateway → OpenAI Universal (gpt-4o-mini via /openai responses)",
 		() => {
-			const llm = getModel("cloudflare-ai-gateway", "workers-ai/@cf/moonshotai/kimi-k2.6");
+			const llm = getModel("cloudflare-ai-gateway", "gpt-4o-mini");
 
 			it("should complete basic text generation", { retry: 3 }, async () => {
 				await basicTextGeneration(llm);
@@ -656,14 +656,6 @@ describe("Generate E2E Tests", () => {
 
 			it("should handle streaming", { retry: 3 }, async () => {
 				await handleStreaming(llm);
-			});
-
-			it("should handle thinking mode", { retry: 3 }, async () => {
-				await handleThinking(llm, { reasoningEffort: "medium" });
-			});
-
-			it("should handle multi-turn with thinking and tools", { retry: 3 }, async () => {
-				await multiTurn(llm, { reasoningEffort: "medium" });
 			});
 		},
 	);

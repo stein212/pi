@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { cloudflareAIGatewayProvider } from "../src/providers/cloudflare-ai-gateway.ts";
 import { cloudflareStreams } from "../src/providers/cloudflare-stream.ts";
-import type { Api, Context, Model } from "../src/types.ts";
+import type { Context, Model } from "../src/types.ts";
 import { AssistantMessageEventStream } from "../src/utils/event-stream.ts";
 
-const model: Model<Api> = {
+const model: Model<"openai-completions"> = {
 	id: "model",
 	name: "model",
 	api: "openai-completions",
@@ -19,6 +20,14 @@ const model: Model<Api> = {
 const context: Context = { messages: [] };
 
 describe("Cloudflare provider streams", () => {
+	it("dispatches gateway /compat models through OpenAI Completions", async () => {
+		const result = await cloudflareAIGatewayProvider().stream(model, context).result();
+
+		expect(result.stopReason).toBe("error");
+		expect(result.errorMessage).toContain("No API key for provider");
+		expect(result.errorMessage).not.toContain("no API implementation");
+	});
+
 	it("materializes the model endpoint before dispatch", () => {
 		const captured: string[] = [];
 		const streams = cloudflareStreams({
